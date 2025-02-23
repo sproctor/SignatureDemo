@@ -1,0 +1,15 @@
+[plugins]
+
+compose = { id = "org.jetbrains.compose", version.ref = "compose" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+
+[versions]
+
+compose = "1.7.3"
+kotlin = "2.1.10"
+signaturepad = "2.0.2"
+
+[libraries]
+
+signaturepad = { module = "com.seanproctor:signaturepad", version.ref = "signaturepad" }
