@@ -17,7 +17,9 @@ import java.awt.Font
 import java.awt.Graphics2D
 import java.awt.image.BufferedImage
 
-class TabletState {
+class TabletState(
+    private val tabletType: TabletType,
+) {
 
     private val _aspectRatio = MutableStateFlow(1.5f)
     val aspectRatio = _aspectRatio.asStateFlow()
@@ -41,68 +43,20 @@ class TabletState {
         onGestureStarted: (Offset) -> Unit,
         onGestureMoved: (Offset) -> Unit,
     ): Boolean {
+        return if (tabletType == TabletType.WACOM) {
+            connectWacomTablet(onCleared, onAccepted, onGestureStarted, onGestureMoved)
+        } else {
+            connectTopazTablet(onCleared, onAccepted, onGestureStarted, onGestureMoved)
+        }
+    }
+
+    private fun connectWacomTablet(
+        onCleared: () -> Unit,
+        onAccepted: () -> Unit,
+        onGestureStarted: (Offset) -> Unit,
+        onGestureMoved: (Offset) -> Unit,
+    ): Boolean {
         try {
-            val sigObj = SigPlus()
-            sigObj.tabletModel = "SignatureGem1X5"
-            sigObj.tabletComPort = "HID1"
-            sigObj.tabletState = 1
-            val tabletWidth = sigObj.tabletLogicalXSize
-            val tabletHeight = sigObj.tabletLogicalYSize
-            _aspectRatio.value = tabletWidth.toFloat() / tabletHeight
-
-            suspend fun drawPoints(stroke: Int, start: Int, end: Int) {
-                withContext(Dispatchers.Main) {
-                    for (i in start until end) {
-                        val x = sigObj.getPointXValue(stroke, i).toFloat() * width / tabletWidth
-                        val y = sigObj.getPointYValue(stroke, i).toFloat() * height / tabletHeight
-                        val offset = Offset(x, y)
-                        if (i == 0) {
-                            onGestureStarted(offset)
-                        } else {
-                            onGestureMoved(offset)
-                        }
-                    }
-                }
-            }
-
-            scope.launch {
-                var currentStroke = 0
-                var registeredPoints = 0
-                sigObj.clearTablet()
-                sigObj.addSigPlusListener(object : SigPlusListener {
-                    override fun handleTabletTimerEvent(p0: SigPlusEvent0?) {
-                        println("tabletTimerEvent")
-                    }
-
-                    override fun handleNewTabletData(p0: SigPlusEvent0?) {
-                        println("newTabletData")
-                    }
-
-                    override fun handleKeyPadData(p0: SigPlusEvent0?) {
-                        println("keyPadData")
-                    }
-                })
-                while (true) {
-                    val strokes = sigObj.numberOfStrokes
-                    //println("Strokes: $strokes")
-                    while (currentStroke + 1 < strokes) {
-                        val points = sigObj.getNumPointsForStroke(currentStroke)
-                        println("Stroke $currentStroke: $points")
-                        drawPoints(currentStroke, registeredPoints, points)
-                        currentStroke++
-                        registeredPoints = 0
-                    }
-                    val points = sigObj.getNumPointsForStroke(currentStroke)
-//                    println("Stroke $currentStroke: $points")
-                    if (points > registeredPoints) {
-                        println("Stroke $currentStroke: $points")
-                        drawPoints(currentStroke, registeredPoints, points)
-                        registeredPoints = points
-                    }
-                    delay(100)
-                }
-            }
-
             val usbDevices = UsbDevice.getUsbDevices()
             val tlsDevices = TlsDevice.getTlsDevices()
 
@@ -201,6 +155,81 @@ class TabletState {
         }
     }
 
+    private fun connectTopazTablet(
+        onCleared: () -> Unit,
+        onAccepted: () -> Unit,
+        onGestureStarted: (Offset) -> Unit,
+        onGestureMoved: (Offset) -> Unit,
+    ): Boolean {
+        try {
+            val sigObj = SigPlus()
+            sigObj.tabletModel = "SignatureGem1X5"
+            sigObj.tabletComPort = "HID1"
+            sigObj.tabletState = 1
+            val tabletWidth = sigObj.tabletLogicalXSize
+            val tabletHeight = sigObj.tabletLogicalYSize
+            _aspectRatio.value = tabletWidth.toFloat() / tabletHeight
+
+            suspend fun drawPoints(stroke: Int, start: Int, end: Int) {
+                withContext(Dispatchers.Main) {
+                    for (i in start until end) {
+                        val x = sigObj.getPointXValue(stroke, i).toFloat() * width / tabletWidth
+                        val y = sigObj.getPointYValue(stroke, i).toFloat() * height / tabletHeight
+                        val offset = Offset(x, y)
+                        if (i == 0) {
+                            onGestureStarted(offset)
+                        } else {
+                            onGestureMoved(offset)
+                        }
+                    }
+                }
+            }
+
+            scope.launch {
+                var currentStroke = 0
+                var registeredPoints = 0
+                sigObj.clearTablet()
+                sigObj.addSigPlusListener(object : SigPlusListener {
+                    override fun handleTabletTimerEvent(p0: SigPlusEvent0?) {
+                        println("tabletTimerEvent")
+                    }
+
+                    override fun handleNewTabletData(p0: SigPlusEvent0?) {
+                        println("newTabletData")
+                    }
+
+                    override fun handleKeyPadData(p0: SigPlusEvent0?) {
+                        println("keyPadData")
+                    }
+                })
+                while (true) {
+                    val strokes = sigObj.numberOfStrokes
+                    //println("Strokes: $strokes")
+                    while (currentStroke + 1 < strokes) {
+                        val points = sigObj.getNumPointsForStroke(currentStroke)
+                        println("Stroke $currentStroke: $points")
+                        drawPoints(currentStroke, registeredPoints, points)
+                        currentStroke++
+                        registeredPoints = 0
+                    }
+                    val points = sigObj.getNumPointsForStroke(currentStroke)
+//                    println("Stroke $currentStroke: $points")
+                    if (points > registeredPoints) {
+                        println("Stroke $currentStroke: $points")
+                        drawPoints(currentStroke, registeredPoints, points)
+                        registeredPoints = points
+                    }
+                    delay(100)
+                }
+            }
+
+            return sigObj.tabletState == 1
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return false
+        }
+    }
+
     private fun clearScreen() {
         val tablet = tablet ?: return
         val capability = tablet.capability
@@ -262,3 +291,8 @@ private data class Position(val x: Int, val y: Int, val width: Int, val height: 
 }
 
 private data class Point(val x: Int, val y: Int)
+
+enum class TabletType {
+    WACOM,
+    TOPAZ
+}
