@@ -24,6 +24,8 @@ dependencies {
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
     implementation(compose.desktop.currentOs)
     implementation(libs.signaturepad)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.swing)
 }
 
 tasks.wrapper {
@@ -38,6 +40,10 @@ compose.desktop {
             packageName = "WacomDemo"
             packageVersion = "1.0.0"
         }
-        jvmArgs.add("-Djava.library.path=$projectDir/jniLibs/x86_64")
+        if (System.getProperty("os.name").lowercase().contains("windows")) {
+            jvmArgs.add("-Djava.library.path=$projectDir/jniLibs/windows-amd64")
+        } else {
+            jvmArgs.add("-Djava.library.path=$projectDir/jniLibs/linux-amd64")
+        }
     }
 }

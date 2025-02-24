@@ -1,26 +1,21 @@
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.window.WindowPosition.PlatformDefault.y
 import com.WacomGSS.STU.Protocol.EncodingMode
 import com.WacomGSS.STU.Protocol.InkingMode
 import com.WacomGSS.STU.Protocol.ProtocolHelper
 import com.WacomGSS.STU.Tablet
 import com.WacomGSS.STU.TlsDevice
 import com.WacomGSS.STU.UsbDevice
-import com.seanproctor.signaturepad.SignaturePadState
 import com.topaz.sigplus.SigPlus
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import com.topaz.sigplus.SigPlusEvent0
+import com.topaz.sigplus.SigPlusListener
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import util.getEncodingMode
 import java.awt.Color
 import java.awt.Font
 import java.awt.Graphics2D
 import java.awt.image.BufferedImage
-import java.beans.Beans
 
 class TabletState {
 
@@ -48,22 +43,61 @@ class TabletState {
     ): Boolean {
         try {
             val sigObj = SigPlus()
-            sigObj.tabletModel = "SigLite"
+            sigObj.tabletModel = "SignatureGem1X5"
             sigObj.tabletComPort = "HID1"
             sigObj.tabletState = 1
+            val tabletWidth = sigObj.tabletLogicalXSize
+            val tabletHeight = sigObj.tabletLogicalYSize
+            _aspectRatio.value = tabletWidth.toFloat() / tabletHeight
+
+            suspend fun drawPoints(stroke: Int, start: Int, end: Int) {
+                withContext(Dispatchers.Main) {
+                    for (i in start until end) {
+                        val x = sigObj.getPointXValue(stroke, i).toFloat() * width / tabletWidth
+                        val y = sigObj.getPointYValue(stroke, i).toFloat() * height / tabletHeight
+                        val offset = Offset(x, y)
+                        if (i == 0) {
+                            onGestureStarted(offset)
+                        } else {
+                            onGestureMoved(offset)
+                        }
+                    }
+                }
+            }
 
             scope.launch {
-                var registeredStrokes = 0
+                var currentStroke = 0
+                var registeredPoints = 0
                 sigObj.clearTablet()
-                println("Serial: ${sigObj.serialNumber}")
+                sigObj.addSigPlusListener(object : SigPlusListener {
+                    override fun handleTabletTimerEvent(p0: SigPlusEvent0?) {
+                        println("tabletTimerEvent")
+                    }
+
+                    override fun handleNewTabletData(p0: SigPlusEvent0?) {
+                        println("newTabletData")
+                    }
+
+                    override fun handleKeyPadData(p0: SigPlusEvent0?) {
+                        println("keyPadData")
+                    }
+                })
                 while (true) {
                     val strokes = sigObj.numberOfStrokes
-                    //println("Current strokes: $strokes")
-                    while (registeredStrokes < strokes) {
-                        val stroke = registeredStrokes
-                        val points = sigObj.getNumPointsForStroke(stroke)
-                        println("Stroke $stroke: $points")
-                        registeredStrokes++
+                    //println("Strokes: $strokes")
+                    while (currentStroke + 1 < strokes) {
+                        val points = sigObj.getNumPointsForStroke(currentStroke)
+                        println("Stroke $currentStroke: $points")
+                        drawPoints(currentStroke, registeredPoints, points)
+                        currentStroke++
+                        registeredPoints = 0
+                    }
+                    val points = sigObj.getNumPointsForStroke(currentStroke)
+//                    println("Stroke $currentStroke: $points")
+                    if (points > registeredPoints) {
+                        println("Stroke $currentStroke: $points")
+                        drawPoints(currentStroke, registeredPoints, points)
+                        registeredPoints = points
                     }
                     delay(100)
                 }
@@ -75,7 +109,7 @@ class TabletState {
             val usbDevice = usbDevices.firstOrNull()
             val tlsDevice = tlsDevices.firstOrNull()
 
-            if  (usbDevice != null || tlsDevice != null) {
+            if (usbDevice != null || tlsDevice != null) {
                 val tablet = Tablet()
                 this.tablet = tablet
                 tablet.encryptionHandler = TabletHandler.MyEncryptionHandler()
@@ -182,7 +216,7 @@ class TabletState {
         val fontSize = button1.height / 2
         gfx.font = Font("Arial", Font.PLAIN, fontSize)
         val buttonColor = if (encodingMode == EncodingMode.EncodingMode_1bit) Color.WHITE
-            else Color.LIGHT_GRAY
+        else Color.LIGHT_GRAY
         drawButton(gfx, button1, "Clear", buttonColor, Color.BLACK)
         drawButton(gfx, button2, "Accept", buttonColor, Color.BLACK)
         gfx.dispose()

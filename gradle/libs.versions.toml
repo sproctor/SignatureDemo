@@ -8,8 +8,11 @@ kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 
 compose = "1.7.3"
 kotlin = "2.1.10"
+kotlinx-coroutines = "1.10.1"
 signaturepad = "2.0.2"
 
 [libraries]
 
+kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-swing = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
 signaturepad = { module = "com.seanproctor:signaturepad", version.ref = "signaturepad" }
