@@ -13,5 +13,5 @@ pluginManagement {
     }
 }
 
-rootProject.name = "WacomDemo"
+rootProject.name = "SignatureDemo"
 
